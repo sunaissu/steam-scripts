@@ -1,0 +1,8 @@
+.env
+.agent/
+
+# Auto-generated cache files
+notified_games.json
+notified_games_owner.json
+notified_games_guests.json
+run_log.txt
