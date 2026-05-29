@@ -32,9 +32,9 @@ EventBridge (cron: daily at 9 AM UTC / 5 PM PHT)
 
 ## Step 1 — Create an S3 Bucket (for cache)
 
-1. Go to **AWS Console** → S3 → **Create bucket**
-2. Name it something like `steam-scripts-cache`
-3. Region: pick the closest to you (e.g. `ap-southeast-1` for Southeast Asia)
+1. Region: pick the closest to you (e.g. `ap-southeast-1` for Southeast Asia)
+2. Go to **AWS Console** → S3 → **Create bucket**
+3. Name it something like `steam-scripts-cache`
 4. Leave all other settings as default → **Create bucket**
 5. Note the bucket name — you'll need it as `CACHE_BUCKET`
 
@@ -56,18 +56,18 @@ EventBridge (cron: daily at 9 AM UTC / 5 PM PHT)
 
 In your Lambda function → **Configuration** → **Environment variables** → Edit → Add:
 
-| Key | Value |
-|---|---|
-| `FULL_DISCOUNT_URL` | Your deals feed URL |
-| `GET_OWNED_GAMES_URL` | `https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/` |
-| `STEAM_API_KEY` | Your Steam API key |
-| `STEAM_ID` | Your 64-bit Steam ID |
-| `EMAIL_SENDER` | Your Gmail address |
-| `EMAIL_PASSWORD` | Your Gmail App Password |
-| `EMAIL_TO` | Owner recipient email address |
-| `CACHE_BUCKET` | Your S3 bucket name |
-| `GUEST_EMAILS` | Comma-separated guest emails (e.g. `alice@gmail.com,bob@gmail.com`) |
-| `GUEST_HASH_SECRET` | A long random secret string (see note below) |
+| Key                   | Value                                                               |
+| --------------------- | ------------------------------------------------------------------- |
+| `FULL_DISCOUNT_URL`   | Your deals feed URL                                                 |
+| `GET_OWNED_GAMES_URL` | `https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/`  |
+| `STEAM_API_KEY`       | Your Steam API key                                                  |
+| `STEAM_ID`            | Your 64-bit Steam ID                                                |
+| `EMAIL_SENDER`        | Your Gmail address                                                  |
+| `EMAIL_PASSWORD`      | Your Gmail App Password                                             |
+| `EMAIL_TO`            | Owner recipient email address                                       |
+| `CACHE_BUCKET`        | Your S3 bucket name                                                 |
+| `GUEST_EMAILS`        | Comma-separated guest emails (e.g. `alice@gmail.com,bob@gmail.com`) |
+| `GUEST_HASH_SECRET`   | A long random secret string (see note below)                        |
 
 > **Do NOT upload a `.env` file** — Lambda reads these directly from its config.
 
@@ -99,15 +99,16 @@ Keep this secret. If it changes, existing guests will receive one repeat notific
 Run this from your project folder:
 
 ```powershell
-package.bat
+.\package.bat
 ```
 
 This creates `lambda.zip` containing:
+
 - `lambda_function.py`
 - `scripts/` folder
 - `requests` library (pre-installed)
 
-Then in AWS Lambda → **Code** → **Upload from** → **.zip file** → upload `lambda.zip`
+Then in AWS Lambda → **Code** → **Update from** → **.zip file** → upload `lambda.zip`
 
 Verify the handler is set to: `lambda_function.lambda_handler`
 
@@ -125,37 +126,26 @@ Lambda defaults to 3 seconds — too short for HTTP requests.
 
 ## Step 7 — Create the EventBridge Schedule
 
-1. Go to **AWS Console** → **EventBridge** → **Rules** → **Create rule**
-2. **Name:** `steam-free-games-daily`
-3. **Rule type:** Schedule
-4. **Schedule pattern:** Cron expression
+The easiest way to schedule this is directly from your Lambda function.
 
-```
-0 9 * * ? *
-```
+1. Go to your **Lambda function** (`steam-free-games-check`) in the AWS Console.
+2. At the top, in the **Function overview** diagram, click **+ Add trigger**.
+3. In the dropdown, select **EventBridge (CloudWatch Events)**.
+4. Under **Rule**, select **Create a new rule**.
+5. Fill in the details:
+   - **Rule name:** `steam-free-games-daily`
+   - **Rule type:** Schedule expression
+   - **Schedule expression:** `cron(0 9 * * ? *)`
+6. Click **Add**.
 
-*(9 AM UTC = 5 PM Philippine Time. Adjust as needed.)*
+_(9 AM UTC = 5 PM Philippine Time. Adjust as needed.)_
 
 UTC offset reference:
 | Your timezone | UTC offset | Cron for 5 PM local |
 |---|---|---|
-| PHT (Philippines) | +8 | `0 9 * * ? *` |
-| SGT (Singapore) | +8 | `0 9 * * ? *` |
-| EST (US East) | -5 | `0 22 * * ? *` |
-
-5. **Target:** Lambda function → select `steam-free-games-check`
-6. **Create rule**
-
----
-
-## Step 8 — Test it manually
-
-In your Lambda function → **Test** tab:
-1. Create a test event (content doesn't matter, use `{}`)
-2. Click **Test**
-3. Check the **Execution results** panel for logs
-4. Verify emails are masked in the logs (e.g. `al***@g***.com`) — full addresses are never printed
-5. Check your email inbox
+| PHT (Philippines) | +8 | `cron(0 9 * * ? *)` |
+| SGT (Singapore) | +8 | `cron(0 9 * * ? *)` |
+| EST (US East) | -5 | `cron(0 22 * * ? *)` |
 
 ---
 
@@ -163,9 +153,9 @@ In your Lambda function → **Test** tab:
 
 The script now uses two separate cache files in S3:
 
-| File | Purpose |
-|---|---|
-| `notified_games_owner.json` | Tracks games already sent to the owner |
+| File                         | Purpose                                                   |
+| ---------------------------- | --------------------------------------------------------- |
+| `notified_games_owner.json`  | Tracks games already sent to the owner                    |
 | `notified_games_guests.json` | Tracks games sent per guest (HMAC-keyed, no plain emails) |
 
 To reset all notifications, delete both files from your S3 bucket:
@@ -179,15 +169,3 @@ The next run will treat all games as new and re-send all emails.
 ### Adding a new guest
 
 Simply add their email to the `GUEST_EMAILS` environment variable (comma-separated). Because the guest cache is tracked per-email, a new guest starts with no history and will be notified of all currently available deals on their first run.
-
----
-
-## Cost estimate
-
-| Service | Usage | Free tier | Cost |
-|---|---|---|---|
-| Lambda | 1 run/day = ~30/month | 1,000,000 runs/month | $0 |
-| EventBridge | 1 rule | 14M events/month free | $0 |
-| S3 | 2 tiny JSON files | 5 GB storage free | $0 |
-
-**Total: $0.00/month**
