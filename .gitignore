@@ -6,3 +6,12 @@ notified_games.json
 notified_games_owner.json
 notified_games_guests.json
 run_log.txt
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Lambda build artifacts
+lambda.zip
+lambda_package/
